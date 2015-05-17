@@ -7,12 +7,13 @@ int main(int argc, char *argv[])
 {
 
    //Read in data size file
-   FILE *fid; int mIn=0, nIn=0;
-   if((fid = fopen("TestSize.dat", "r")==NULL)){
+   FILE *fid; int mnIn[2];
+   fid = fopen("TestSize.dat", "r");
+   if(fid ==NULL){
      printf("TestSize.dat file could not open!\n");
    }else{
-     fprintf(fid, "%d %d", mIn, nIn);
-     printf("Reading in Data file of size %d by %d\n", mIn, nIn);
+     fread(mnIn, sizeof(int), 2, fid);
+     printf("Reading in Data file of size %d by %d\n", mnIn[0], mnIn[1]);
      fclose(fid);
    }
   
