@@ -11,22 +11,27 @@ int main(int argc, char *argv[])
    fid = fopen("TestSize.dat", "r");
    if(fid ==NULL){
      printf("TestSize.dat file could not open!\n");
+     return(-1);
    }else{
      fread(mnIn, sizeof(int), 2, fid);
      printf("Reading in Data file of size %d by %d\n", mnIn[0], mnIn[1]);
      fclose(fid);
    }
   
- 
    //set up lapack variables
    lapack_int info, m, n, lda;
-   m = 5;
-   n = 3;
-   lda = 5;
+   m = mnIn[0];
+   n = mnIn[1];
+   lda = m;
 
 
    //Allocate room for data
-   double A[m*n];
+   double *A;
+   if(NULL==(A = malloc(m*n*sizeof(double)))){
+     printf("malloc of A failed\n");
+     return(-1);
+   }
+   printf("A is allocated!\n");
    double R[m*n];
    double tau[n];
 
