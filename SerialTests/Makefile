@@ -1,5 +1,5 @@
 LOADER = gfortran
-LOPT = -O3
+LOPT = -O3 
 CC = gcc
 MAIN = SerialTest
 HEAD = lapacke_example_aux

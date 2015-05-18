@@ -4,6 +4,8 @@
 #include <lapacke.h>
 #include "lapacke_example_aux.h"
 
+
+
 int main(int argc, char *argv[])
 {
 
@@ -23,8 +25,7 @@ int main(int argc, char *argv[])
    lapack_int info, m, n, lda;
    m = mnIn[0];
    n = mnIn[1];
-   lda = m;
-
+   lda = n;
 
    //Allocate room for data
    double *A;
@@ -59,15 +60,10 @@ int main(int argc, char *argv[])
    printf("Finished reading in the %d data points!\n", m*n);
 
 
-   //Nice if we have smaller matrices
-   //print_matrix_colmajor("Entry Matrix A", m, n, A, lda);
-   //printf( "\n" );
-
    //Solving the Double GEneral matrix QR decomposition
-
    printf("Solving the QR decomp...");
-   info = LAPACKE_dgeqrf(LAPACK_COL_MAJOR, m, n, A, lda, tau);
-   printf("done!\n");
+   info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, m, n, A, lda, tau);
+   printf("done!\n"); 
 
    //Use this to make a smaller upper triangular matrix
    //int upperTriSize = n*(n+1)/2;
@@ -78,28 +74,50 @@ int main(int argc, char *argv[])
    memcpy(R, A, sizeof(double)*m*n);
    printf("done!\n");
 
+   
+
    printf("Getting the Q data from the QGEQRF output matrix...");
-   info = LAPACKE_dorgqr(LAPACK_COL_MAJOR, m, n, n, A, lda, tau);
+   info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, n, n, A, lda, tau);
    printf("done!\n");
 
    //Lapacke svd function
    //Allocating Solution Matrices
-   double S[n], U[m*m], Vt[n*n];
-   double superb[n-1];
-   info = LAPACKE_dgesvd(LAPACK_COL_MAJOR, 'A', 'A', m, n, R, m, S, U, m, Vt, n, superb);
+   double *S, *U, *Vt, *superb;
+
+   //Allocating S
+   if(NULL==(S = malloc(n*sizeof(double)))){
+     printf("malloc of S failed\n"); return(-1);
+   }else{ printf("S is allocated!\n");}
+
+   //Allocating U
+   if(NULL==(U = malloc(m*m*sizeof(double)))){
+     printf("malloc of U failed\n");return(-1);
+   }else{printf("U is allocated!\n");}
+
+   //Allocating Vt
+   if(NULL==(Vt = malloc(n*n*sizeof(double)))){
+     printf("malloc of Vt failed\n");return(-1);
+   }else{printf("Vt is allocated!\n");}
+   
+   //Allocating superb
+   if(NULL==(superb = malloc((n-1)*sizeof(double)))){
+     printf("malloc of supurb failed\n");return(-1);
+   }else{printf("superb is allocated!\n");}
+
+
+
+   printf("Calculating the SVD of Matrix R using DGESVD...");
+   info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', m, n, R, lda, S, U, m, Vt, n, superb);
+   printf("done!\n");
+
+   //print_matrix_rowmajor("U", m, m, Vt, m);
+   //print_matrix_rowmajor("V", n, n, Vt, n);
+   //print_matrix_rowmajor("S", 1, n, S, 1);
 
    //TODO: Write function to compare with MATLAB solutions to do error checking
 
    //TODO: Need to deallocate solution matrices
 
+
    return(0);
 }
-
-int allocateData(double *dataPtr, int length, char* description){
-   if(NULL==(dataPtr = malloc(length*sizeof(double)))){
-     printf("malloc of %s failed\n", description);
-     return(-1);
-   }
-   printf("%s is allocated!\n", description);
-   return(0);
-}  
