@@ -110,14 +110,22 @@ int main(int argc, char *argv[])
    info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', m, n, R, lda, S, U, m, Vt, n, superb);
    printf("done!\n");
 
-   //print_matrix_rowmajor("U", m, m, Vt, m);
+   //print_matrix_rowmajor("U", m, m, U, m);
    //print_matrix_rowmajor("V", n, n, Vt, n);
    //print_matrix_rowmajor("S", 1, n, S, 1);
 
-   //TODO: Write function to compare with MATLAB solutions to do error checking
+   //TODO: Write function to compare with MATLAB solutions/error checking
 
-   //TODO: Need to deallocate solution matrices
-
+   //Deallocate solution matrices
+   printf("Deallocating malloc'ed data...");
+   free(A);printf("A...");
+   free(R);printf("R...");
+   free(U);printf("U...");
+   free(S);printf("S...");
+   free(Vt);printf("Vt...");
+   free(superb);printf("superb...");
+   free(tau);printf("tau...");
+   printf("done!\n");
 
    return(0);
 }
