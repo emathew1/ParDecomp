@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <lapacke.h>
+#include <cblas.h>
 #include "lapacke_example_aux.h"
 
 
@@ -45,12 +46,12 @@ int main(int argc, char *argv[])
     return(-1);
    }
    printf(" ->R is allocated!\n");
-   double *tau;
-   if(NULL==(tau = malloc(n*sizeof(double)))){
+   double *Tau;
+   if(NULL==(Tau = malloc(numOfChunks*n*sizeof(double)))){
      printf("malloc of Tau failed\n");
      return(-1);
    }
-   printf(" ->tau is allocated!\n");
+   printf(" ->Tau is allocated!\n");
 
    //Read in data file
    fid = fopen("TestIn.dat", "r");
@@ -71,7 +72,8 @@ int main(int argc, char *argv[])
        //Need to move the pointer to the start of the next chunk after every
        //new index
        double *AchunkLocation = &A[i*mSmall*n]; 
-       info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, mSmall, n, AchunkLocation, lda, tau);
+       double *TauChunkLocation = &Tau[i*n]; 
+       info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, mSmall, n, AchunkLocation, lda, TauChunkLocation);
        printf("done!\n"); 
    }
    
@@ -92,18 +94,21 @@ int main(int argc, char *argv[])
      }
    }
  
-   //Lapack QR decomp function 
+   //1st Lapack QR decomp function 
    for(i = 0; i < numOfChunks; i++){
      printf(" ->Getting the Q data from the QGEQRF output matrix...%d...", i+1);
      double *AchunkLocation = &A[i*mSmall*n];
-     info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, mSmall, n, n, AchunkLocation, lda, tau);
+     double *TauChunkLocation = &Tau[i*n]; 
+     info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, mSmall, n, n, AchunkLocation, lda, TauChunkLocation);
      printf("done!\n");
    }
+   free(Tau);
+
 
    //Need to do one more QR decomp of the upper-Tri block R Matrix
    double *Rfinal;
    if(NULL==(Rfinal = malloc(n*n*sizeof(double)))){
-     printf("malloc of Tau failed\n");
+     printf("malloc of Rfinal failed\n");
      return(-1);
    }
    double *Tau2;
@@ -112,6 +117,7 @@ int main(int argc, char *argv[])
      return(-1);
    }
 
+   //2nd Lapack QR decomp function call 
    info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, numOfChunks*n, n, R, lda, Tau2);
 
    //Generate the final R matrix
@@ -132,8 +138,28 @@ int main(int argc, char *argv[])
    //  For those keeping track, the Q matrices from the first QR decomp are now
    //  in A, and the Q matrix from the second decomp are now in R
    info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, numOfChunks*n, n, n, R, lda,Tau2);
+   free(Tau2);
 
-  print_matrix_rowmajor("R Final", n, n, Rfinal, n);
+   //Start getting the real Q matrix back...
+   double *Qfinal;
+   if(NULL==(Qfinal = malloc(m*n*sizeof(double)))){
+     printf("malloc of Qfinal failed\n");
+     return(-1);
+   } printf(" ->Allocated Qfinal!\n");
+
+   for(i = 0; i < numOfChunks; i++){
+     printf(" ->Calculating the final Q using DGEMM...%d...", i+1);
+     double *AchunkLocation = &A[i*mSmall*n];
+     double *RchunkLocation = &R[i*n*n];
+     double *QchunkLocation = &Qfinal[i*mSmall*n];
+     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, mSmall, n, n, 1.0, AchunkLocation, n, RchunkLocation, n, 0.0, QchunkLocation, n); 	
+     printf("done!\n");
+   }
+   free(R);
+   free(A);  
+
+   //print_matrix_rowmajor("R Final", n, n, Rfinal, n);
+   //print_matrix_rowmajor("Q Final", m, n, Qfinal, n);
 
    //Lapacke svd function
    //Allocating Solution Matrices
@@ -160,7 +186,6 @@ int main(int argc, char *argv[])
    }else{printf("superb is allocated!\n");}
 
 
-
    printf("Calculating the SVD of Matrix R using DGESVD...");
    info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', numOfChunks*n, n, Rfinal, lda, S, U, numOfChunks*n, Vt, n, superb);
    printf("done!\n");
@@ -169,19 +194,20 @@ int main(int argc, char *argv[])
    //print_matrix_rowmajor("V", n, n, Vt, n);
    //print_matrix_rowmajor("S", 1, n, S, 1);
 
+   //Now all we have to do is calculate the left eigenvectors from the left eigenvectors
+   //of R and multiply against Q 
+
+
    //TODO: Write function to compare with MATLAB solutions/error checking
 
    //Deallocate solution matrices
-   printf("Deallocating malloc'ed data...");
-   free(A);printf("A...");
-   free(R);printf("R...");
-   free(U);printf("U...");
-   free(S);printf("S...");
-   free(Vt);printf("Vt...");
-   free(superb);printf("superb...");
-   free(tau);printf("tau...");
-   free(Rfinal);printf("Rfinal...");
-   free(Tau2);printf("Tau2...");
+   printf(" ->Deallocating malloc'ed data...");
+   free(U); printf("U...");
+   free(S); printf("S...");
+   free(Vt); printf("Vt...");
+   free(superb); printf("superb...");
+   free(Rfinal); printf("Rfinal...");
+   free(Qfinal); printf("Qfinal...");
    printf("done!\n");
 
    return(0);
