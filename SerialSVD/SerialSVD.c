@@ -26,6 +26,11 @@ int main(int argc, char *argv[])
    m = mnIn[0];
    n = mnIn[1];
    lda = n;
+ 
+   //Set mSmall Size (perfectly divisible size right now)
+   int numOfChunks = 10;
+   lapack_int mSmall = m/numOfChunks;
+   
 
    //Allocate room for data
    double *A;
@@ -35,7 +40,7 @@ int main(int argc, char *argv[])
    }
    printf("A is allocated!\n");
    double *R;
-   if(NULL==(R = malloc(m*n*sizeof(double)))){
+   if(NULL==(R = malloc(n*n*numOfChunks*sizeof(double)))){
     printf("malloc of R failed\n");
     return(-1);
    }
@@ -61,25 +66,44 @@ int main(int argc, char *argv[])
 
 
    //Solving the Double GEneral matrix QR decomposition
-   printf("Solving the QR decomp...");
-   info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, m, n, A, lda, tau);
-   printf("done!\n"); 
-
-   //Use this to make a smaller upper triangular matrix
-   //int upperTriSize = n*(n+1)/2;
-   //double R_upperTri[upperTriSize];
+   int i;
+   for(i = 0; i < numOfChunks; i++){
+       printf("Solving the QR decomp...%d...",i+1);
+       //Need to move the pointer to the start of the next chunk after every
+       //new index
+       double *AchunkLocation = &A[i*mSmall*n]; 
+       info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, mSmall, n, AchunkLocation, lda, tau);
+       printf("done!\n"); 
+   }
    
-   //Copy over the data from the solution matrix A to the upper tri R
-   printf("Memcpy results to R matrix...");
-   memcpy(R, A, sizeof(double)*m*n);
-   printf("done!\n");
-
-  
+   //Lets see if we can be fairly organized about copying over just the upper tri's
+   //of each chunk over to R 
+   for(i = 0; i < numOfChunks; i++){
+     double *AchunkLocation = &A[i*mSmall*n];
+     double *RchunkLocation = &R[i*n*n];
+     int j, k;
+     for(j = 0; j < n; j++){
+       for(k = 0; k < n; k++){
+         if(k>=j){
+           RchunkLocation[j*n + k] = AchunkLocation[j*n + k];
+         }else{
+           RchunkLocation[j*n + k] = 0.0;
+	 }
+       }
+     }
+   }
+ 
+   //print_matrix_rowmajor("UpperTri's R", numOfChunks*n, n, R, lda);
+ 
    //Lapack QR decomp function 
-   printf("Getting the Q data from the QGEQRF output matrix...");
-   info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, n, n, A, lda, tau);
-   printf("done!\n");
+   for(i = 0; i < numOfChunks; i++){
+     printf("Getting the Q data from the QGEQRF output matrix...%d...", i+1);
+     double *AchunkLocation = &A[i*mSmall*n];
+     info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, mSmall, n, n, AchunkLocation, lda, tau);
+     printf("done!\n");
+   }
 
+/*
    //Lapacke svd function
    //Allocating Solution Matrices
    double *S, *U, *Vt, *superb;
@@ -126,6 +150,8 @@ int main(int argc, char *argv[])
    free(superb);printf("superb...");
    free(tau);printf("tau...");
    printf("done!\n");
+
+*/
 
    return(0);
 }

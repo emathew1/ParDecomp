@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
    memcpy(R, A, sizeof(double)*m*n);
    printf("done!\n");
 
-   
-
+  
+   //Lapack QR decomp function 
    printf("Getting the Q data from the QGEQRF output matrix...");
    info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, n, n, A, lda, tau);
    printf("done!\n");
