@@ -1,0 +1,9 @@
+//////////////////////////////////
+//////// TSQR SVD SOLVER /////////
+//////////////////////////////////
+-- 1/17/2015 -- Ed Mathews
+
+
+- This part is just a test serial version of the to be parallelized tall-skinny QR decomp SVD solver 
+
+- Data here is in row major format, so if outputting a matrix from MATLAB to test the solution be sure to transpose the matrix before writing out.
