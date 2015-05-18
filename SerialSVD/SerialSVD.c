@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
      return(-1);
    }else{
      fread(mnIn, sizeof(int), 2, fid);
-     printf("Data dimensions - %d by %d\n", mnIn[0], mnIn[1]);
+     printf(" ->Data dimensions - %d by %d\n", mnIn[0], mnIn[1]);
      fclose(fid);
    }
   
@@ -38,19 +38,19 @@ int main(int argc, char *argv[])
      printf("malloc of A failed\n");
      return(-1);
    }
-   printf("A is allocated!\n");
+   printf(" ->A is allocated!\n");
    double *R;
    if(NULL==(R = malloc(n*n*numOfChunks*sizeof(double)))){
     printf("malloc of R failed\n");
     return(-1);
    }
-   printf("R is allocated!\n");
+   printf(" ->R is allocated!\n");
    double *tau;
    if(NULL==(tau = malloc(n*sizeof(double)))){
      printf("malloc of Tau failed\n");
      return(-1);
    }
-   printf("tau is allocated!\n");
+   printf(" ->tau is allocated!\n");
 
    //Read in data file
    fid = fopen("TestIn.dat", "r");
@@ -59,16 +59,15 @@ int main(int argc, char *argv[])
      return(-1);
    }else{
      fread(A, sizeof(double), m*n, fid);
-     printf("Reading in Data file of size %d by %d\n", mnIn[0], mnIn[1]);
+     printf(" ->Reading in Data file of size %d by %d\n", mnIn[0], mnIn[1]);
      fclose(fid);
    }
-   printf("Finished reading in the %d data points!\n", m*n);
-
+   printf(" ->Finished reading in the %d data points!\n", m*n);
 
    //Solving the Double GEneral matrix QR decomposition
    int i;
    for(i = 0; i < numOfChunks; i++){
-       printf("Solving the QR decomp...%d...",i+1);
+       printf(" ->Solving the QR decomp...%d...",i+1);
        //Need to move the pointer to the start of the next chunk after every
        //new index
        double *AchunkLocation = &A[i*mSmall*n]; 
@@ -93,17 +92,49 @@ int main(int argc, char *argv[])
      }
    }
  
-   //print_matrix_rowmajor("UpperTri's R", numOfChunks*n, n, R, lda);
- 
    //Lapack QR decomp function 
    for(i = 0; i < numOfChunks; i++){
-     printf("Getting the Q data from the QGEQRF output matrix...%d...", i+1);
+     printf(" ->Getting the Q data from the QGEQRF output matrix...%d...", i+1);
      double *AchunkLocation = &A[i*mSmall*n];
      info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, mSmall, n, n, AchunkLocation, lda, tau);
      printf("done!\n");
    }
 
-/*
+   //Need to do one more QR decomp of the upper-Tri block R Matrix
+   double *Rfinal;
+   if(NULL==(Rfinal = malloc(n*n*sizeof(double)))){
+     printf("malloc of Tau failed\n");
+     return(-1);
+   }
+   double *Tau2;
+   if(NULL==(Tau2 = malloc(n*sizeof(double)))){
+     printf("malloc of Tau2 failed\n");
+     return(-1);
+   }
+
+   info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, numOfChunks*n, n, R, lda, Tau2);
+
+   //Generate the final R matrix
+   { //Scope the j and k iterators
+     int j, k;
+     for(j = 0; j < n; j++){
+       for( k = 0; k < n; k++){
+	 if(k >= j){
+	   Rfinal[j*n + k] = R[j*n + k];
+	 }else{
+	   Rfinal[j*n + k] = 0.0;	
+	 }
+       }
+     }
+   }
+
+   //Get the Q matrix back out of the last calculation
+   //  For those keeping track, the Q matrices from the first QR decomp are now
+   //  in A, and the Q matrix from the second decomp are now in R
+   info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, numOfChunks*n, n, n, R, lda,Tau2);
+
+  print_matrix_rowmajor("R Final", n, n, Rfinal, n);
+
    //Lapacke svd function
    //Allocating Solution Matrices
    double *S, *U, *Vt, *superb;
@@ -114,7 +145,7 @@ int main(int argc, char *argv[])
    }else{ printf("S is allocated!\n");}
 
    //Allocating U
-   if(NULL==(U = malloc(m*m*sizeof(double)))){
+   if(NULL==(U = malloc(numOfChunks*numOfChunks*n*n*sizeof(double)))){
      printf("malloc of U failed\n");return(-1);
    }else{printf("U is allocated!\n");}
 
@@ -131,10 +162,10 @@ int main(int argc, char *argv[])
 
 
    printf("Calculating the SVD of Matrix R using DGESVD...");
-   info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', m, n, R, lda, S, U, m, Vt, n, superb);
+   info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', numOfChunks*n, n, Rfinal, lda, S, U, numOfChunks*n, Vt, n, superb);
    printf("done!\n");
 
-   //print_matrix_rowmajor("U", m, m, U, m);
+   //print_matrix_rowmajor("U", numOfChunks*n, numOfChunks*n, U, numOfChunks*n);
    //print_matrix_rowmajor("V", n, n, Vt, n);
    //print_matrix_rowmajor("S", 1, n, S, 1);
 
@@ -149,9 +180,9 @@ int main(int argc, char *argv[])
    free(Vt);printf("Vt...");
    free(superb);printf("superb...");
    free(tau);printf("tau...");
+   free(Rfinal);printf("Rfinal...");
+   free(Tau2);printf("Tau2...");
    printf("done!\n");
-
-*/
 
    return(0);
 }
