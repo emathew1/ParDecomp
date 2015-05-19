@@ -7,11 +7,13 @@
 #include <time.h>
 
 
+void safeMallocDouble(double **, int, char*);
+
 int main(int argc, char *argv[])
 {
 
    //Number of "Simulated" Processes
-   int numOfChunks = 50;
+   int numOfChunks = 1;
 
    //Read in data size file
    FILE *fid; int mnIn[2];
@@ -34,26 +36,10 @@ int main(int argc, char *argv[])
    //Set mSmall Size (perfectly divisible size right now)
    lapack_int mSmall = m/numOfChunks;
    
-
    //Allocate room for data
-   double *A;
-   if(NULL==(A = malloc(m*n*sizeof(double)))){
-     printf("malloc of A failed\n");
-     return(-1);
-   }
-   printf(" ->A is allocated!\n");
-   double *R;
-   if(NULL==(R = malloc(n*n*numOfChunks*sizeof(double)))){
-    printf("malloc of R failed\n");
-    return(-1);
-   }
-   printf(" ->R is allocated!\n");
-   double *Tau;
-   if(NULL==(Tau = malloc(numOfChunks*n*sizeof(double)))){
-     printf("malloc of Tau failed\n");
-     return(-1);
-   }
-   printf(" ->Tau is allocated!\n");
+   double *A;   safeMallocDouble(&A, m*n, "A");
+   double *R;   safeMallocDouble(&R, n*n, "R");
+   double *Tau; safeMallocDouble(&Tau, n, "Tau");
 
    //Read in data file
    fid = fopen("TestIn.dat", "r");
@@ -123,16 +109,8 @@ int main(int argc, char *argv[])
 
    begin2 = clock();
    //Need to do one more QR decomp of the upper-Tri block R Matrix
-   double *Rfinal;
-   if(NULL==(Rfinal = malloc(n*n*sizeof(double)))){
-     printf("malloc of Rfinal failed\n");
-     return(-1);
-   }
-   double *Tau2;
-   if(NULL==(Tau2 = malloc(n*sizeof(double)))){
-     printf("malloc of Tau2 failed\n");
-     return(-1);
-   }
+   double *Rfinal; safeMallocDouble(&Rfinal, n*n, "Rfinal");
+   double *Tau2;   safeMallocDouble(&Tau2, n, "Tau2");
 
    //2nd Lapack QR decomp function call 
    info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, numOfChunks*n, n, R, lda, Tau2);
@@ -167,11 +145,7 @@ int main(int argc, char *argv[])
    sum += (end2-begin2);
 
    //Start getting the real Q matrix back...
-   double *Qfinal;
-   if(NULL==(Qfinal = malloc(m*n*sizeof(double)))){
-     printf("malloc of Qfinal failed\n");
-     return(-1);
-   } printf(" ->Allocated Qfinal!\n");
+   double *Qfinal; safeMallocDouble(&Qfinal, m*n, "Qfinal");
 
    begin2 = clock();
    for(i = 0; i < numOfChunks; i++){
@@ -191,39 +165,23 @@ int main(int argc, char *argv[])
 
    begin2 = clock();
    //Allocating S
-   double *S;
-   if(NULL==(S = malloc(n*sizeof(double)))){
-     printf("malloc of S failed\n"); return(-1);
-   }else{ printf(" ->S is allocated!\n");}
+   double *S; safeMallocDouble(&S, n, "S");
 
    //Allocating Utemp
-   double *Utemp;
-   if(NULL==(Utemp = malloc(n*n*sizeof(double)))){
-     printf("malloc of Utemp failed\n");return(-1);
-   }else{printf(" ->Utemp is allocated!\n");}
+   double *Utemp; safeMallocDouble(&Utemp, n*n, "Utemp");
 
    //Allocating Vt
-   double *Vt;
-   if(NULL==(Vt = malloc(n*n*sizeof(double)))){
-     printf("malloc of Vt failed\n");return(-1);
-   }else{printf(" ->Vt is allocated!\n");}
+   double *Vt; safeMallocDouble(&Vt, n*n, "Vt");
    
    //Allocating superb
-   double *superb;
-   if(NULL==(superb = malloc((n-1)*sizeof(double)))){
-     printf("malloc of supurb failed\n");return(-1);
-   }else{printf(" ->superb is allocated!\n");}
-
+   double *superb; safeMallocDouble(&superb, (n-1), "superb");
 
    printf(" ->Calculating the SVD of Matrix R using DGESVD...");
    info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', n, n, Rfinal, lda, S, Utemp, numOfChunks*n, Vt, n, superb);
    printf("done!\n");
 
    //Allocating U
-   double *U;
-   if(NULL==(U = malloc(m*n*sizeof(double)))){
-     printf("malloc of U failed\n");return(-1);
-   }else{printf(" ->U is allocated!\n");}
+   double *U; safeMallocDouble(&U, m*n, "U");
    end2 = clock();
    sum += end2-begin2;
 
@@ -253,7 +211,7 @@ int main(int argc, char *argv[])
 
    //print_matrix_rowmajor("U", m, n, U, n);
    //print_matrix_rowmajor("V", n, n, Vt, n);
-   //print_matrix_rowmajor("S", 1, n, S, 1);
+   print_matrix_rowmajor("S", 1, n, S, 1);
 
 
    //TODO: Write function to compare with MATLAB solutions/error checking
@@ -270,4 +228,13 @@ int main(int argc, char *argv[])
    printf("done!\n");
 
    return(0);
+}
+
+void safeMallocDouble(double **A, int size, char* desc){
+   if(NULL==(*A = (double*)malloc(size*sizeof(double)))){
+     printf(" !!!!!!!!!!!!!!!!!!!\n");
+     printf(" ->%s malloc failed\n", desc);
+     printf(" !!!!!!!!!!!!!!!!!!!\n");
+   }
+   printf(" ->%s: Memory Allocated - %lu bytes\n", desc, size*sizeof(double));
 }
