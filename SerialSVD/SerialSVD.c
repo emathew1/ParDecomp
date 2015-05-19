@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
    int i;
 
    //Number of "Simulated" Processes
-   int numOfChunks = 2;
+   int numOfChunks = 5;
 
    //Read in data size file
    FILE *fid; int mnIn[2];
