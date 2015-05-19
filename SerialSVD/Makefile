@@ -1,9 +1,9 @@
 LOADER = gfortran
-LOPT = -O3 
+LOPT = -O3 -ffast-math -funroll-loops 
 CC = gcc
 MAIN = SerialSVD
 HEAD = lapacke_example_aux
-CCOPT  = -O3
+CCOPT  = -O3 -ffast-math -funroll-loops
 
 all: $(MAIN)
 

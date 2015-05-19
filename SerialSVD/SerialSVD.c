@@ -4,11 +4,14 @@
 #include <lapacke.h>
 #include <cblas.h>
 #include "lapacke_example_aux.h"
-
+#include <time.h>
 
 
 int main(int argc, char *argv[])
 {
+
+   //Number of "Simulated" Processes
+   int numOfChunks = 50;
 
    //Read in data size file
    FILE *fid; int mnIn[2];
@@ -29,7 +32,6 @@ int main(int argc, char *argv[])
    lda = n;
  
    //Set mSmall Size (perfectly divisible size right now)
-   int numOfChunks = 10;
    lapack_int mSmall = m/numOfChunks;
    
 
@@ -65,8 +67,14 @@ int main(int argc, char *argv[])
    }
    printf(" ->Finished reading in the %d data points!\n", m*n);
 
+   //Timing the algorithm
+   clock_t begin, end;
+   clock_t begin2, end2, sum=0;
+   begin = clock();
+
    //Solving the Double GEneral matrix QR decomposition
    int i;
+   begin2 = clock();
    for(i = 0; i < numOfChunks; i++){
        printf(" ->Solving the QR decomp...%d...",i+1);
        //Need to move the pointer to the start of the next chunk after every
@@ -76,7 +84,10 @@ int main(int argc, char *argv[])
        info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, mSmall, n, AchunkLocation, lda, TauChunkLocation);
        printf("done!\n"); 
    }
-   
+   end2 = clock();
+   sum += (end2-begin2)/numOfChunks;
+
+   begin2 = clock();
    //Lets see if we can be fairly organized about copying over just the upper tri's
    //of each chunk over to R 
    for(i = 0; i < numOfChunks; i++){
@@ -93,7 +104,11 @@ int main(int argc, char *argv[])
        }
      }
    }
- 
+   end2 = clock();
+   sum += (end2-begin2)/numOfChunks; 
+
+
+   begin2 = clock();
    //1st Lapack QR decomp function 
    for(i = 0; i < numOfChunks; i++){
      printf(" ->Getting the Q data from the QGEQRF output matrix...%d...", i+1);
@@ -103,8 +118,10 @@ int main(int argc, char *argv[])
      printf("done!\n");
    }
    free(Tau);
+   end2 = clock();
+   sum += (end2-begin2)/numOfChunks;
 
-
+   begin2 = clock();
    //Need to do one more QR decomp of the upper-Tri block R Matrix
    double *Rfinal;
    if(NULL==(Rfinal = malloc(n*n*sizeof(double)))){
@@ -119,7 +136,10 @@ int main(int argc, char *argv[])
 
    //2nd Lapack QR decomp function call 
    info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, numOfChunks*n, n, R, lda, Tau2);
+   end2 = clock();
+   sum += (end2-begin2);
 
+   begin2 = clock();
    //Generate the final R matrix
    { //Scope the j and k iterators
      int j, k;
@@ -133,12 +153,18 @@ int main(int argc, char *argv[])
        }
      }
    }
+   end2 = clock();
+   sum += (begin2-end2);
 
    //Get the Q matrix back out of the last calculation
    //  For those keeping track, the Q matrices from the first QR decomp are now
    //  in A, and the Q matrix from the second decomp are now in R
+
+   begin2 = clock();
    info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, numOfChunks*n, n, n, R, lda,Tau2);
    free(Tau2);
+   end2 = clock();
+   sum += (end2-begin2);
 
    //Start getting the real Q matrix back...
    double *Qfinal;
@@ -147,6 +173,7 @@ int main(int argc, char *argv[])
      return(-1);
    } printf(" ->Allocated Qfinal!\n");
 
+   begin2 = clock();
    for(i = 0; i < numOfChunks; i++){
      printf(" ->Calculating the final Q using DGEMM...%d...", i+1);
      double *AchunkLocation = &A[i*mSmall*n];
@@ -155,53 +182,85 @@ int main(int argc, char *argv[])
      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, mSmall, n, n, 1.0, AchunkLocation, n, RchunkLocation, n, 0.0, QchunkLocation, n); 	
      printf("done!\n");
    }
-   free(R);
-   free(A);  
+   free(R);free(A);
+   end2 = clock();
+   sum += (end2 - begin2)/numOfChunks;
 
    //print_matrix_rowmajor("R Final", n, n, Rfinal, n);
    //print_matrix_rowmajor("Q Final", m, n, Qfinal, n);
 
-   //Lapacke svd function
-   //Allocating Solution Matrices
-   double *S, *U, *Vt, *superb;
-
+   begin2 = clock();
    //Allocating S
+   double *S;
    if(NULL==(S = malloc(n*sizeof(double)))){
      printf("malloc of S failed\n"); return(-1);
-   }else{ printf("S is allocated!\n");}
+   }else{ printf(" ->S is allocated!\n");}
 
-   //Allocating U
-   if(NULL==(U = malloc(numOfChunks*numOfChunks*n*n*sizeof(double)))){
-     printf("malloc of U failed\n");return(-1);
-   }else{printf("U is allocated!\n");}
+   //Allocating Utemp
+   double *Utemp;
+   if(NULL==(Utemp = malloc(n*n*sizeof(double)))){
+     printf("malloc of Utemp failed\n");return(-1);
+   }else{printf(" ->Utemp is allocated!\n");}
 
    //Allocating Vt
+   double *Vt;
    if(NULL==(Vt = malloc(n*n*sizeof(double)))){
      printf("malloc of Vt failed\n");return(-1);
-   }else{printf("Vt is allocated!\n");}
+   }else{printf(" ->Vt is allocated!\n");}
    
    //Allocating superb
+   double *superb;
    if(NULL==(superb = malloc((n-1)*sizeof(double)))){
      printf("malloc of supurb failed\n");return(-1);
-   }else{printf("superb is allocated!\n");}
+   }else{printf(" ->superb is allocated!\n");}
 
 
-   printf("Calculating the SVD of Matrix R using DGESVD...");
-   info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', numOfChunks*n, n, Rfinal, lda, S, U, numOfChunks*n, Vt, n, superb);
+   printf(" ->Calculating the SVD of Matrix R using DGESVD...");
+   info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'A', 'A', n, n, Rfinal, lda, S, Utemp, numOfChunks*n, Vt, n, superb);
    printf("done!\n");
 
-   //print_matrix_rowmajor("U", numOfChunks*n, numOfChunks*n, U, numOfChunks*n);
+   //Allocating U
+   double *U;
+   if(NULL==(U = malloc(m*n*sizeof(double)))){
+     printf("malloc of U failed\n");return(-1);
+   }else{printf(" ->U is allocated!\n");}
+   end2 = clock();
+   sum += end2-begin2;
+
+   begin2 = clock();
+   //Left Hand Eigenvectors of A=Q*Utemp
+   for(i = 0; i < numOfChunks; i++){
+     printf(" ->Calculating the Left Hand Eigenvectors of A...%d...", i+1);
+     double *QfChunkLocation = &Qfinal[i*mSmall*n];
+     double *UchunkLocation = &U[i*mSmall*n];
+     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, mSmall, n, n, 1.0, QfChunkLocation, n, Utemp, n, 0.0, UchunkLocation, n); 	
+     printf("done!\n");
+   }
+   end2 = clock();
+   sum += (end2-begin2)/numOfChunks;
+
+   //See how long all of the calculations took...(some memory stuff too)
+   end = clock();
+   printf(" \n----------------------------------\n");
+   printf(" ---- TSQR SVD took %fs! ----\n", (double)(end-begin)/CLOCKS_PER_SEC);
+   printf(" ----------------------------------\n\n");
+
+   printf(" -- Estimated Parallel Algorithm --\n");
+   printf(" ----------- on %d cores ----------\n", numOfChunks);
+   printf(" ---- TSQR SVD took %fs! ----\n", (double)(sum)/CLOCKS_PER_SEC);
+   printf(" ----- Plus Communication Time ----\n\n");
+
+
+   //print_matrix_rowmajor("U", m, n, U, n);
    //print_matrix_rowmajor("V", n, n, Vt, n);
    //print_matrix_rowmajor("S", 1, n, S, 1);
-
-   //Now all we have to do is calculate the left eigenvectors from the left eigenvectors
-   //of R and multiply against Q 
 
 
    //TODO: Write function to compare with MATLAB solutions/error checking
 
    //Deallocate solution matrices
    printf(" ->Deallocating malloc'ed data...");
+   free(Utemp); printf("Utemp...");
    free(U); printf("U...");
    free(S); printf("S...");
    free(Vt); printf("Vt...");
