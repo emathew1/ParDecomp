@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
    int i;
 
    //Number of "Simulated" Processes
-   int numOfChunks = 5;
+   int numOfChunks = 10;
 
    //Read in data size file
    FILE *fid; int mnIn[2];
@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
    
    //Allocate room for data
    double *A;   safeMallocDouble(&A, m*n, "A");
-   double *R;   safeMallocDouble(&R, n*n, "R");
-   double *Tau; safeMallocDouble(&Tau, n, "Tau");
+   double *R;   safeMallocDouble(&R, n*n*numOfChunks, "R");
+   double *Tau; safeMallocDouble(&Tau, n*numOfChunks, "Tau");
 
    //Read in data file
    fid = fopen("TestIn2.dat", "r");
