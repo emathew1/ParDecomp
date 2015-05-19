@@ -22,11 +22,11 @@ int main(int argc, char *argv[])
    int i;
 
    //Number of "Simulated" Processes
-   int numOfChunks = 1;
+   int numOfChunks = 2;
 
    //Read in data size file
    FILE *fid; int mnIn[2];
-   fid = fopen("TestSize.dat", "r");
+   fid = fopen("TestSize2.dat", "r");
    if(fid ==NULL){
        printf("TestSize.dat file could not open!\n");
        return(-1);
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    double *Tau; safeMallocDouble(&Tau, n, "Tau");
 
    //Read in data file
-   fid = fopen("TestIn.dat", "r");
+   fid = fopen("TestIn2.dat", "r");
    if(fid ==NULL){
        printf("TestIn.dat file could not open!\n");
        return(-1);
@@ -75,7 +75,9 @@ int main(int argc, char *argv[])
        printf("done!\n"); 
    }
 
-   parSubToc(begin, numOfChunks, &sum); tic(&begin2);
+
+
+   parSubToc(begin2, numOfChunks, &sum); tic(&begin2);
 
    //Lets see if we can be fairly organized about copying over just the upper tri's
    //of each chunk over to R 
@@ -94,7 +96,7 @@ int main(int argc, char *argv[])
        }
    }
 
-   parSubToc(begin, numOfChunks, &sum); tic(&begin2);
+   parSubToc(begin2, numOfChunks, &sum); tic(&begin2);
 
    //1st Lapack QR decomp function 
    for(i = 0; i < numOfChunks; i++){
@@ -106,7 +108,7 @@ int main(int argc, char *argv[])
    }
    free(Tau);
 
-   parSubToc(begin, numOfChunks, &sum); tic(&begin2);
+   parSubToc(begin2, numOfChunks, &sum); tic(&begin2);
 
    //Need to do one more QR decomp of the upper-Tri block R Matrix
    double *Rfinal; safeMallocDouble(&Rfinal, n*n, "Rfinal");
@@ -115,7 +117,7 @@ int main(int argc, char *argv[])
    //2nd Lapack QR decomp function call 
    info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, numOfChunks*n, n, R, lda, Tau2);
 
-   parSubToc(begin, 1, &sum); tic(&begin2);
+   parSubToc(begin2, 1, &sum); tic(&begin2);
 
    //Generate the final R matrix
    { //Scope the j and k iterators
@@ -131,7 +133,7 @@ int main(int argc, char *argv[])
      }
    }
 
-   parSubToc(begin, 1, &sum); tic(&begin2);
+   parSubToc(begin2, 1, &sum); tic(&begin2);
 
    //Get the Q matrix back out of the last calculation
    //  For those keeping track, the Q matrices from the first QR decomp are now
@@ -139,7 +141,7 @@ int main(int argc, char *argv[])
    info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, numOfChunks*n, n, n, R, lda,Tau2);
    free(Tau2);
 
-   parSubToc(begin, 1, &sum); tic(&begin2);
+   parSubToc(begin2, 1, &sum); tic(&begin2);
 
    //Start getting the real Q matrix back...
    double *Qfinal; safeMallocDouble(&Qfinal, m*n, "Qfinal");
@@ -151,9 +153,11 @@ int main(int argc, char *argv[])
        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, mSmall, n, n, 1.0, AchunkLocation, n, RchunkLocation, n, 0.0, QchunkLocation, n); 	
        printf("done!\n");
    }
+
+
    free(R);free(A);
 
-   parSubToc(begin, numOfChunks, &sum); tic(&begin2);
+   parSubToc(begin2, numOfChunks, &sum); tic(&begin2);
 
    //Allocating SVD Variables
    double *S;      safeMallocDouble(&S, n, "S");
@@ -168,7 +172,7 @@ int main(int argc, char *argv[])
    //Allocating U
    double *U; safeMallocDouble(&U, m*n, "U");
 
-   parSubToc(begin, 1, &sum); tic(&begin2);
+   parSubToc(begin2, 1, &sum); tic(&begin2);
 
    //Left Hand Eigenvectors of A=Q*Utemp
    for(i = 0; i < numOfChunks; i++){
@@ -181,13 +185,13 @@ int main(int argc, char *argv[])
 
 
    //Final Time Stuff
-   parSubToc(begin, numOfChunks, &sum); 
+   parSubToc(begin2, numOfChunks, &sum); 
    toc(&begin, &end);
    parToc(numOfChunks, sum);
 
    //print_matrix_rowmajor("U", m, n, U, n);
    //print_matrix_rowmajor("V", n, n, Vt, n);
-   //print_matrix_rowmajor("S", 1, n, S, 1);
+    print_matrix_rowmajor("S", 1, n, S, 1);
 
 
    //TODO: Write function to compare with MATLAB solutions/error checking
@@ -207,7 +211,7 @@ int main(int argc, char *argv[])
 }
 
 void safeMallocDouble(double **A, int size, char* desc){
-   if(NULL==(*A = (double*)malloc(size*sizeof(double)))){
+   if(NULL==(*A = (double*)calloc(size,sizeof(double)))){
      printf(" !!!!!!!!!!!!!!!!!!!\n");
      printf(" ->%s malloc failed\n", desc);
      printf(" !!!!!!!!!!!!!!!!!!!\n");
